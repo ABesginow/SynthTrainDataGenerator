@@ -133,7 +133,8 @@ for label in classes:
                 # Why do I do both of these and combine them?
                 mask_canny_edge = image_processor.canny(mask)
 		img_canny_edge = image_processor.auto_canny(img_gray)
-                combined_canny_edge = image_processor.combine_edges(mask_canny_edge, img_canny_edge)
+                mask_weight = 1.0
+                combined_canny_edge = image_processor.combine_edges(mask_canny_edge, mask_weight, img_canny_edge (1-mask_weight))
 		
 		object_contour = image_processor.max_contour(combined_canny_edge)
 		try:

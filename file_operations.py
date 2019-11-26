@@ -11,9 +11,16 @@ class FileOperations():
         pass
 
     def write_box_coordinates(self, txtfile, bb, cls_id):
+        """
+        Internal function
+        Write the bounding box coordinates to the textfile with the given class-id
+        """
         txtfile.write(str(cls_id) + " " + " ".join([str(a) for a in bb]) + '\n')
         
     def save_to_folder(self, textfile, imagefile, bb_array, image):
+        """
+        Write all bounding boxes and a given image into a directory
+        """
         cv2.imwrite(imagefile, image)
         # If the shape is not (4,) it's of bigger size and therefore many classes/objects
         if np.shape(bb_array) == (4,):
@@ -26,6 +33,9 @@ class FileOperations():
 
 
     def write_config_files(self, classes, foldername):
+        """
+        Create the configuration files for the training, given a certain directory
+        """
         # obj.names
         with open(foldername + "obj.names", 'w') as fp:
             for label in classes:
@@ -39,7 +49,7 @@ class FileOperations():
             fp.write( "names=obj.names"+ "\n")
             fp.write( "backup=backup/" + "\n")
         
-        # training_name_yolo.cfg
+        # <training_name>_yolo.cfg
         shutil.copy("yolov3.cfg", foldername + foldername[:-1] + "_yolov3.cfg")
         with open(foldername + foldername[:-1] + "_yolov3.cfg", 'r') as f:
             lines = f.readlines()
