@@ -5,155 +5,192 @@ import glob
 import imutils
 
 class ImageProcessing:
+    def __init__(self, img=0):
+        if not img == 0:
+            self.background = img.copy()
+	    pass
 
-	def __init__(self, img):
-		self.background = img.copy()
-		pass
+    def convert(self, size, box):
+        # TODO rewrite box to be [TL, BR] coordinates
+        """
+        Convert from absolute positions to relative positions, centred around teh middle (yolo format)
 
-	def convert(self, size, box):
-		dw = 1./size[0]
-		dh = 1./size[1]
-		x = (box[0] + box[1])/2.0
-		y = (box[2] + box[3])/2.0
-		w = box[1] - box[0]
-		h = box[3] - box[2]
-		x = x*dw
-		w = w*dw
-		y = y*dh
-		h = h*dh
-		return (x,y,w,h)
+        Inputs: 
+            size = [widht, height]
+            box  = [x1, x2, y1, y2]
+        """
+        dw = 1./size[0]
+	dh = 1./size[1]
+	x = (box[0] + box[1])/2.0
+	y = (box[2] + box[3])/2.0
+	w = box[1] - box[0]
+	h = box[3] - box[2]
+	x = x*dw
+	w = w*dw
+	y = y*dh
+	h = h*dh
+	return (x,y,w,h)
 
-	def auto_canny(self, image, sigma=0.53):
-		# compute the median of the single channel pixel intensities
-		v = np.median(image)
-		
-		# apply automatic Canny edge detection using the computed median
-		lower = int(max(0, (1.0 - sigma) * v))
-		upper = int(min(255, (1.0 + sigma) * v))
-		edged = cv2.Canny(image, lower, upper)
+    def auto_canny(self, image, sigma=0.53):
+        """
+        Calculates the edges of the image based on an automatic canny edge detection
+        Taken from rosebrock-blog (LearnOpenCV?)
+        """
+	# compute the median of the single channel pixel intensities
+	v = np.median(image)
+	
+	# apply automatic Canny edge detection using the computed median
+	lower = int(max(0, (1.0 - sigma) * v))
+	upper = int(min(255, (1.0 + sigma) * v))
+	edged = cv2.Canny(image, lower, upper)
+	edged = cv2.dilate(edged, (3, 3), iterations=1)
+	# return the edged image
+	return edged
 
-		edged = cv2.dilate(edged, (3, 3), iterations=1)
+    def black_out_corners(self, img, percentage):
+        """
+        Cuts out triangles starting from "percentage*img.size"
+        """
+	# TL corner
+	tl = (0, 0)
+	tr = (0, int(percentage * (np.shape(img)[0])))
+	bl = (int(percentage * (np.shape(img)[1])), 0)
+	triangle_cnt = np.array([tl, tr, bl])
+	print(triangle_cnt)
+	cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
 
-		# return the edged image
-		return edged
+	# BL corner
+	bl = (0, np.shape(img)[0])
+	tl = (0, int(((1 - percentage) * (np.shape(img)[0]))))
+	br = (int((percentage) * np.shape(img)[1]), (np.shape(img)[0]))
+	triangle_cnt = np.array([bl, tl, br])
+	print(triangle_cnt)
+	cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
 
-	def black_out_corners(self, img, percentage):
-		# TL corner
-		tl = (0, 0)
-		tr = (0, int(percentage * (np.shape(img)[0])))
-		bl = (int(percentage * (np.shape(img)[1])), 0)
-		triangle_cnt = np.array([tl, tr, bl])
-		print(triangle_cnt)
-		cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
+	# BR corner
+	br = list(reversed(np.shape(img)[0:2]))
+	bl = (np.shape(img)[1], int((1 - percentage) * (np.shape(img)[0])))
+	tr = (int((1 - percentage) * np.shape(img)[1]), (np.shape(img)[0]))
+	triangle_cnt = np.array([tr, bl, br])
+	print(triangle_cnt)
+	cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
 
-		# BL corner
-		bl = (0, np.shape(img)[0])
-		tl = (0, int(((1 - percentage) * (np.shape(img)[0]))))
-		br = (int((percentage) * np.shape(img)[1]), (np.shape(img)[0]))
-		triangle_cnt = np.array([bl, tl, br])
-		print(triangle_cnt)
-		cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
+        # TR corner
+	br = (np.shape(img)[1], int(percentage * (np.shape(img)[0])))
+	bl = (np.shape(img)[1], 0)
+	tl = (int((1 - percentage) * np.shape(img)[1]), 0)
+	triangle_cnt = np.array([tl, bl, br])
+	print(triangle_cnt)
+	cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
+	return img
 
-		# BR corner
-		br = list(reversed(np.shape(img)[0:2]))
-		bl = (np.shape(img)[1], int((1 - percentage) * (np.shape(img)[0])))
-		tr = (int((1 - percentage) * np.shape(img)[1]), (np.shape(img)[0]))
-		triangle_cnt = np.array([tr, bl, br])
-		print(triangle_cnt)
-		cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
+    def remove_background_youtube(self, img_raw, lower_green, upper_green):
+        # TODO Vote for removal
+        """DEPRECATED
+        Based on some Youtube code, this can create a mask, based on upper and lower boundaries"""
+	hsv = cv2.cvtColor(img_raw, cv2.COLOR_BGR2HSV)
 
-		# TR corner
-		br = (np.shape(img)[1], int(percentage * (np.shape(img)[0])))
-		bl = (np.shape(img)[1], 0)
-		tl = (int((1 - percentage) * np.shape(img)[1]), 0)
-		triangle_cnt = np.array([tl, bl, br])
-		print(triangle_cnt)
-		cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
-		return img
-
-	def remove_background_youtube(self, img_raw, lower_green, upper_green):
-		hsv = cv2.cvtColor(img_raw, cv2.COLOR_BGR2HSV)
-
-		#lower_green = np.array([56, 87, 0])
-		#upper_green = np.array([69, 255, 255])
+        #lower_green = np.array([56, 87, 0])
+	#upper_green = np.array([69, 255, 255])
 		    
-		mask = cv2.inRange(hsv, lower_green, upper_green)
-		mask_inv = cv2.bitwise_not(mask)
+	mask = cv2.inRange(hsv, lower_green, upper_green)
+	mask_inv = cv2.bitwise_not(mask)
 		
-		fg = cv2.bitwise_and(img_raw, img_raw, mask=mask_inv)
-		return fg, mask_inv
+	fg = cv2.bitwise_and(img_raw, img_raw, mask=mask_inv)
+	return fg, mask_inv
 
 
-	def remove_background_histogram(self, img_raw):
-		imgHLS = cv2.cvtColor(self.background, cv2.COLOR_BGR2HLS)
-		hist, bins = np.histogram(imgHLS[0], bins=5)
-		print(hist)
-		print(bins)
-		maxIndex = np.argmax(hist)
-		lowerBound = bins[maxIndex]
-		higherBound = bins[maxIndex + 1]
-		#print(higherBound)
-		#print(lowerBound)
-		capHLS = cv2.cvtColor(img_raw, cv2.COLOR_BGR2HLS)
-		mask = (capHLS[:, :, 0] <= higherBound) & (lowerBound <= capHLS[:, :, 0])
-		mask = np.uint8(mask)
-		#closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, (5, 5))
-		#closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, (10, 10))
-		mask = cv2.blur(mask, (2, 2))
-		#print(mask)
-		#print(masked_data)
-		#masked_data = np.where(cap == self.background, 0, cap)
-		masked_data = cv2.bitwise_and(img_raw, img_raw, mask=mask)
-		masked_data = cv2.dilate(masked_data, (3, 3), iterations=3)
-		return masked_data
 
-	def gray(self, img_raw):
-		return cv2.cvtColor(img_raw, cv2.COLOR_BGR2GRAY)
+    def remove_background_histogram(self, img_raw):
+        # TODO Vote for removal
+        """DEPRECATED
+        Based on the histogram of the image, remove the parts of the image which are occuring the most/least (?)
+        Code is not really clean aswell
+        """
+	imgHLS = cv2.cvtColor(self.background, cv2.COLOR_BGR2HLS)
+	hist, bins = np.histogram(imgHLS[0], bins=5)
+        print(hist)
+    	print(bins)
+	maxIndex = np.argmax(hist)
+	lowerBound = bins[maxIndex]
+	higherBound = bins[maxIndex + 1]
+	#print(higherBound)
+	#print(lowerBound)
+	capHLS = cv2.cvtColor(img_raw, cv2.COLOR_BGR2HLS)
+	mask = (capHLS[:, :, 0] <= higherBound) & (lowerBound <= capHLS[:, :, 0])
+	mask = np.uint8(mask)
+	#closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, (5, 5))
+	#closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, (10, 10))
+	mask = cv2.blur(mask, (2, 2))
+	#print(mask)
+	#print(masked_data)
+	#masked_data = np.where(cap == self.background, 0, cap)
+	masked_data = cv2.bitwise_and(img_raw, img_raw, mask=mask)
+	masked_data = cv2.dilate(masked_data, (3, 3), iterations=3)
+	return masked_data
 
-	def canny(self, img):
-		upper = 200
-		lower = 0
-		img = cv2.blur(img, (2, 2))
-		if np.shape(img)[-1] != 3:
-			edges = cv2.Canny(img, lower, upper)
-		else:
-			edges = cv2.Canny(self.gray(img), lower, upper)
-		#edges = cv2.dilate(edges, (10, 10), iterations=8)
-		edges = cv2.dilate(edges, (3, 3), iterations=3)
-		return edges
+    def gray(self, img_raw):
+	return cv2.cvtColor(img_raw, cv2.COLOR_BGR2GRAY)
 
-	def central_contour(self, img):
-		im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-		centerY = np.shape(img)[0]/2
-		centerX = np.shape(img)[1]/2
-		central_contour = 0
-		bestX, bestY = 0, 0
-		for c in contours:
-			if cv2.contourArea(c) < 300:
-				continue
-			# compute the center of the contour
-			M = cv2.moments(c)
-			try:
-				cX = int(M["m10"] / M["m00"])
-				cY = int(M["m01"] / M["m00"])
-			except:
-				cX = 1000
-				cY = 1000
+    def canny(self, img):
+        """
+        Run a canny edge detection with predefined boundaries and dilate the result so the edges are visible more clearly.
+        Also runs on color and grayscale.
+        """
+	upper = 200
+	lower = 0
+	img = cv2.blur(img, (2, 2))
+        # If image has 3 dimensions (is color image), first convert it to grayscale
+	if np.shape(img)[-1] != 3:
+		edges = cv2.Canny(img, lower, upper)
+	else:
+		edges = cv2.Canny(self.gray(img), lower, upper)
+	edges = cv2.dilate(edges, (3, 3), iterations=3)
+	return edges
 
-			if np.sqrt((centerY-cY)**2 + (centerX-cX)**2) < np.sqrt((centerY-bestY)**2 + (centerX-bestX)**2):
-				central_contour = c
-				bestX = cX
-				bestY = cY
-		return central_contour
+    def central_contour(self, img, min_size):
+        """
+        Find the most central contour in an image, given a minimal size boundary
+        img : Result from a canny edge detection (or at least grayscale)
+        """
+	im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	centerY = np.shape(img)[0]/2
+	centerX = np.shape(img)[1]/2
+	central_contour = 0
+	bestX, bestY = 0, 0
+	for c in contours:
+		if cv2.contourArea(c) < min_size:
+			continue
+		# compute the center of the contour
+                # TODO research what a moment is exactly
+		M = cv2.moments(c)
+		try:
+			cX = int(M["m10"] / M["m00"])
+			cY = int(M["m01"] / M["m00"])
+		except:
+			cX = 1000
+			cY = 1000
+                # if cartesian distance from center is less -> new best(most central) contour found
+		if np.sqrt((centerY-cY)**2 + (centerX-cX)**2) < np.sqrt((centerY-bestY)**2 + (centerX-bestX)**2):
+			central_contour = c
+			bestX = cX
+			bestY = cY
+	return central_contour
 
 
-	def max_contour(self, img):
-		im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-		if len(contours) != 0:
-			max_contour = max(contours, key = cv2.contourArea)
-			return max_contour
-		else:
-			return -1
+    def max_contour(self, img):
+        """
+        Find and return the largest contour
+
+        img : Result from a canny edge detection (or at least grayscale)
+
+        """
+	im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	if len(contours) != 0:
+		max_contour = max(contours, key = cv2.contourArea)
+		return max_contour
+	else:
+		return -1
 
 	def bounding_box(self, object_contour):
 		x, y, w, h = cv2.boundingRect(object_contour)

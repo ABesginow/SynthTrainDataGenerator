@@ -129,9 +129,11 @@ for label in classes:
 		cv2.imshow('bckgrndsgmnttn', img_deleted_background)
 		mask = cv2.blur(mask, (3, 3))
 		img_gray = image_processor.gray(img_raw)
-		mask_canny_edge = image_processor.canny(mask)
+		
+                # Why do I do both of these and combine them?
+                mask_canny_edge = image_processor.canny(mask)
 		img_canny_edge = image_processor.auto_canny(img_gray)
-		combined_canny_edge = image_processor.combine_edges(mask_canny_edge, img_canny_edge)
+                combined_canny_edge = image_processor.combine_edges(mask_canny_edge, img_canny_edge)
 		
 		object_contour = image_processor.max_contour(combined_canny_edge)
 		try:
