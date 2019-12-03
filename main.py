@@ -77,17 +77,22 @@ image_processor = ImageProcessing(camera.capture())
 
 delay = 1/1000.0
 #images = input("How many images do you want per category (5 categories)?")
-images = 10
+images = 10000
 STEPS_FOR_FULL_CIRCLE = 12360
 steps = int(STEPS_FOR_FULL_CIRCLE/images)
-classes = ["Halterung1", "Halterung2"]#, "Rolle"]
+classes = ["Banana"]#, "Rolle"]
+
+only_snippets = False
+only_train_images = True
 
 ## Section for the configuration
 # Make images for every class
 for label in classes:
+    if only_train_images:
+        break
     last_five_OTL_sizes = [0]*5
         
-        # Initialise GUI
+    # Initialise GUI
     panel = np.zeros([100, 700], np.uint8)
     cv2.namedWindow('panel')
 
@@ -109,7 +114,7 @@ for label in classes:
     switch = '0 : OFF \n1 : ON'
     cv2.createTrackbar(switch, 'panel',0,1,nothing)
     string_motor = '0 : MOTOR OFF \n1 : MOTOR ON'
-    cv2.createTrackbar(string_motor, 'panel',0,1,nothing)
+    cv2.createTrackbar(string_motor, 'panel', 0, 1, nothing)
         
         # Allow user to set boundary values & get live preview
     while True:
@@ -220,7 +225,7 @@ for label in classes:
         filename = "snippets/" + label + "/" + str(hashlib.md5(str.encode(str(time.time()))).hexdigest()) + '.jpg'
         
         cv2.imwrite(filename, OTL_cut_out)
-        motor.forward(delay, int(STEPS_FOR_FULL_CIRCLE/images))
+        motor.forward(delay, int(STEPS_FOR_FULL_CIRCLE/images + 10))
         
         #except Exception as e:
     #       print("I am a failure " + str(e))
@@ -248,10 +253,13 @@ for label in classes:
 """
         #cv2.imshow('combined', final)
         
+if only_snippets:
+    motor.cleanUp()
+    print('finished creating snippets')
+    exit()
 
 
-
-multiple_classes = True
+multiple_classes = False
 cls_ids = [f for f,_ in enumerate(classes)]
 if multiple_classes == True:
     for i in range(images):
@@ -270,11 +278,17 @@ if multiple_classes == True:
 else:
     for label in classes:
         for i in range(images):
+            pathname = "snippets/" + label + "/"
+            filename = random.choice(os.listdir(pathname))
+            filepath = pathname + filename
+            OTL_cut_out = cv2.imread(filepath)
             final, bounding_box = image_processor.OTL_on_background(OTL_cut_out)
-            if final is 0 and bounding_box is 0:
+            if final is 0 and 0 in bounding_box:
                 print("Error in OTL_on_background")
                 i = i - steps
-                continue    
+                continue
+            save_to_files(bounding_box, final)
+
 
         
         # 5 different transformations

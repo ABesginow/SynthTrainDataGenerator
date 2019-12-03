@@ -24,7 +24,7 @@ class FileOperations():
         cv2.imwrite(imagefile, image)
         # If the shape is not (4,) it's of bigger size and therefore many classes/objects
         if np.shape(bb_array) == (4,):
-            print("np.shape is (4,)")
+            #print("np.shape is (4,)")
             self.write_box_coordinates(textfile, bb_array, 0)
         else:
             for bb in bb_array:

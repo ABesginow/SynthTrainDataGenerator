@@ -380,9 +380,12 @@ class ImageProcessing:
         OTL_size_factor = 1
         if background is 0:
             #background = cv2.imread('market.jpg')
-            background = cv2.imread('Backgrounds/' + random.choice(os.listdir("Backgrounds")))
-        background = imutils.resize(background, width=1000)
-            
+            background_name = 'Backgrounds/' + random.choice(os.listdir("Backgrounds"))
+            background = cv2.imread(background_name)
+        try:
+            background = imutils.resize(background, width=1000)
+        except:
+            print("There is something wrong with: " + str(background_name))
         img1 = background
         if random_size:
                 # random returns a number between 0 and 1, so my value will be between 0 and 2
