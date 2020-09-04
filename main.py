@@ -10,6 +10,7 @@ import hashlib
 import time
 import os
 import random
+import argparse
 # zip
 import shutil
 from pathlib import Path
@@ -18,10 +19,6 @@ from pathlib import Path
 from configparser import ConfigParser
 
 RPI_CAMERA = 0
-IMAGE_FOLDER = "Images/"
-BOX_FOLDER = "Boxes/"
-
-STEPS_FOR_FULL_CIRCLE = 12360
 
 def nothing(x):
     pass
@@ -41,19 +38,16 @@ def save_to_files(bounding_box, final):
 
     file_operations.save_to_folder(textfile, imagefile, bounding_box, final)
 
-
-
-
-#Get the configparser object
-config_object = ConfigParser()
-
-cfg_file = Path("config.ini")
-
-if not cfg_file.exists():
+def create_config_file():
     #Assume we need 2 sections in the config file, let's call them USERINFO and SERVERCONFIG
     config_object["GENERAL"] = {
-            "steps for full rotation": "12360",
-            "steps per image": "30"
+        "steps for full rotation": "12360",
+        "steps per image": "30",
+        "images per class": "3000",
+        "delay": "0.0001",
+        "results folder":"Results/",
+        "target folder": "Snippets/",
+        "backgrounds folder":"Backgrounds/"
     }
     config_object["DATASETINFO"] = {
             "object0": "hose",
@@ -68,32 +62,47 @@ if not cfg_file.exists():
     with open('config.ini', 'w') as conf:
             config_object.write(conf)
 
+
+
+#Get the configparser object
+config_object = ConfigParser()
+
+cfg_file = Path("config.ini")
+
+if not cfg_file.exists():
+    create_config_file()
+
 #Read config.ini file
 config_object.read("config.ini")
 
-#Get the password
-objects_info = config_object["DATASETINFO"]
-# Getting the entries
-objects_info["object0"]
+general_info = config_object["GENERAL"]
+dataset_info = config_object["DATASETINFO"]
 
-# todo get classes through GUI
 classes = []
+# Getting the entries
+for entry in dataset_info:
+    classes.append(dataset_info[entry])
 
-#interface = CLI()
+IMAGES = int(general_info["images per class"])
+STEPS_FOR_FULL_CIRCLE = int(general_info["steps for full rotation"])
+DELAY = float(general_info["delay"])
+steps = int(STEPS_FOR_FULL_CIRCLE/IMAGES)
+
+
 file_operations = FileOperations()
 motor = MotorControl()
 camera = ImageCapture(RPI_CAMERA)
 image_processor = ImageProcessing(camera.capture())
 
 
-delay = 1/1000.0
-#images = input("How many images do you want per category (5 categories)?")
-images = 10000
-steps = int(STEPS_FOR_FULL_CIRCLE/images)
-classes = ["Banana"]#, "Rolle"]
+parser = argparse.ArgumentParser(description='Create a synthetic dataset for object detection.')
+parser.add_argument('--only_snippets', action="store_true", help='only capture snippets without creating a dataset (default: false)')
+parser.add_argument('--only_train_images', action="store_true", help='only create the dataset wihout capturing snippets (default: false)')
 
-only_snippets = False
-only_train_images = True
+args = parser.parse_args()
+
+only_snippets =args.only_snippets
+only_train_images = args.only_train_images
 
 ## Section for the configuration
 # Make images for every class
