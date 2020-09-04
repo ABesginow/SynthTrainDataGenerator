@@ -1,5 +1,3 @@
-#Notes: 1 full circle is 12360 movements of motor
-
 from image_capture import ImageCapture
 from motor_control_PI import MotorControl
 from image_processing import ImageProcessing
@@ -23,10 +21,8 @@ RPI_CAMERA = 0
 def nothing(x):
     pass
 
-def save_to_files(bounding_box, final):
+def save_to_files(bounding_box, final, foldername):
     filename = str(hashlib.md5(str.encode(str(time.time()))).hexdigest())
-    # folder for the class
-    foldername = "new_folder/"
     # datafolder for the images and the txt files
     datafolder = foldername + "data/"
     cwd = os.getcwd()
@@ -46,7 +42,7 @@ def create_config_file():
         "images per class": "3000",
         "delay": "0.0001",
         "results folder":"Results/",
-        "target folder": "Snippets/",
+        "snippets folder": "Snippets/",
         "backgrounds folder":"Backgrounds/"
     }
     config_object["DATASETINFO"] = {
@@ -62,6 +58,28 @@ def create_config_file():
     with open('config.ini', 'w') as conf:
             config_object.write(conf)
 
+def execute_processing(img_raw, lower_green, upper_green):
+    # cut out background
+    img_deleted_background, mask = image_processor.remove_background_youtube(img_raw, lower_green, upper_green)
+    mask = cv2.blur(mask, (3, 3))
+    img_gray = image_processor.gray(img_raw)
+    # For possible future purposes
+    mask_canny_edge = image_processor.canny(mask)
+    img_canny_edge = image_processor.auto_canny(img_gray)
+    mask_weight = 1.0
+    combined_canny_edge = image_processor.combine_edges(mask_canny_edge,
+            mask_weight, img_canny_edge, (1-mask_weight))
+
+    object_contour = image_processor.max_contour(combined_canny_edge)
+
+    try:
+        bounding_box = image_processor.bounding_box(object_contour)
+    except:
+        continue
+
+    OTL_cut_out = img_deleted_background[bounding_box[0][1]:bounding_box[1][1],bounding_box[0][0]:bounding_box[1][0],:]
+
+    return img_deleted_background, combined_canny_edge, OTL_cut_out
 
 
 #Get the configparser object
@@ -86,23 +104,29 @@ for entry in dataset_info:
 IMAGES = int(general_info["images per class"])
 STEPS_FOR_FULL_CIRCLE = int(general_info["steps for full rotation"])
 DELAY = float(general_info["delay"])
-steps = int(STEPS_FOR_FULL_CIRCLE/IMAGES)
-
+steps =int(general_info["steps per image"])
+results_folder = general_info["results folder"]
+snippets_folder = general_info["snippets folder"]
 
 file_operations = FileOperations()
 motor = MotorControl()
 camera = ImageCapture(RPI_CAMERA)
 image_processor = ImageProcessing(camera.capture())
 
-
 parser = argparse.ArgumentParser(description='Create a synthetic dataset for object detection.')
 parser.add_argument('--only_snippets', action="store_true", help='only capture snippets without creating a dataset (default: false)')
 parser.add_argument('--only_train_images', action="store_true", help='only create the dataset wihout capturing snippets (default: false)')
+parser.add_argument('--multiclass_images', action="store_false", help='always draw objects from all classes concurrently on the training images (default: True)')
+parser.add_argument('--randomize_multiclass', action="store_true", help='randomly sample classes which are drawn on the training images (default: false)')
+parser.add_argument('--allow_overlap', action="store_false", help='allows objects placed in the training images to overlap at most 50% (default: true)')
 
 args = parser.parse_args()
 
 only_snippets =args.only_snippets
 only_train_images = args.only_train_images
+multiclass = args.multiclass_images
+randomize_multiclass = args.randomize_multiclass
+allow_overlap = args.allow_overlap
 
 ## Section for the configuration
 # Make images for every class
@@ -135,7 +159,7 @@ for label in classes:
     string_motor = '0 : MOTOR OFF \n1 : MOTOR ON'
     cv2.createTrackbar(string_motor, 'panel', 0, 1, nothing)
 
-        # Allow user to set boundary values & get live preview
+    # Allow user to set boundary values & get live preview
     while True:
         img_raw = camera.capture()
 
@@ -153,78 +177,43 @@ for label in classes:
             # for live preview
         cv2.imshow('panel', panel)
         key = cv2.waitKey(20)
-        # cut out background
-        img_deleted_background, mask = image_processor.remove_background_youtube(img_raw, lower_green, upper_green)
+
+        # Function that returns the results of the different processing steps
+        img_deleted_backgroud, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
+
         cv2.imshow('bckgrndsgmnttn', img_deleted_background)
 
-        mask = cv2.blur(mask, (3, 3))
-        img_gray = image_processor.gray(img_raw)
-        # For possible future purposes
-        mask_canny_edge = image_processor.canny(mask)
-        img_canny_edge = image_processor.auto_canny(img_gray)
-        mask_weight = 1.0
-        combined_canny_edge = image_processor.combine_edges(mask_canny_edge,
-                mask_weight, img_canny_edge, (1-mask_weight))
-
-        object_contour = image_processor.max_contour(combined_canny_edge)
-        if key == ord('q'):
-            cv2.destroyAllWindows()
-            motor.cleanUp()
-            quit()
-        try:
-            bounding_box = image_processor.bounding_box(object_contour)
-        except:
-            continue
-        cv2.drawContours(img_raw,object_contour,-1,(0,255,0),3)
-        #print(bounding_box)
-        cv2.rectangle(img_raw, bounding_box[0], bounding_box[1], (0, 255, 0), 2)
-        # display stuff
+       # display stuff
         cv2.imshow('canny', combined_canny_edge)
         cv2.imshow('raw', img_raw)
-        OTL_cut_out = img_deleted_background[bounding_box[0][1]:bounding_box[1][1],bounding_box[0][0]:bounding_box[1][0],:]
         cv2.imshow('cut_out', OTL_cut_out)
-                # Possibility to save images
+        # Possibility to save images
         if key == ord('s'):
             cv2.imwrite('backgroundsegmented.jpg', img_deleted_background)
             cv2.imwrite('canny.jpg', combined_canny_edge)
             cv2.imwrite('raw.jpg', img_raw)
             cv2.imwrite('cut_out.jpg', OTL_cut_out)
-            # currently: Get out of loop to start capturing
+        if key == ord('q'):
+            cv2.destroyAllWindows()
+            motor.cleanUp()
+            quit()
         if start == 1:
-            # Future:
             break
         if bool_motor == 1:
             motor.forward(delay, 1000)
-
 
 
     ## Section for the training data creation
     cv2.destroyAllWindows()
 
     for i in range(0, STEPS_FOR_FULL_CIRCLE, steps):
-        print("Progress for " + label + ": " + str(i/STEPS_FOR_FULL_CIRCLE*100) + "%")
+        print(f"Progress for {label}: {str(i/STEPS_FOR_FULL_CIRCLE*100)}%")
         img_raw = camera.capture()
 
-        img_deleted_background, mask = image_processor.remove_background_youtube(img_raw, lower_green, upper_green)
+        img_deleted_backgroud, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
 
-        #key = cv2.waitKey(20)
-            # Same as above (see preview)
-        mask = cv2.blur(mask, (3, 3))
-        img_gray = image_processor.gray(img_raw)
-        mask_canny_edge = image_processor.canny(mask)
-        img_canny_edge = image_processor.auto_canny(img_gray)
-        combined_canny_edge = image_processor.combine_edges(mask_canny_edge,
-                mask_weight, img_canny_edge, (1-mask_weight))
-
-        object_contour = image_processor.max_contour(combined_canny_edge)
-        try:
-            bounding_box = image_processor.bounding_box(object_contour)
-        except:
-            i = i - steps
-            continue
-        OTL_cut_out = img_deleted_background[bounding_box[0][1]:bounding_box[1][1],bounding_box[0][0]:bounding_box[1][0],:]
         # check if cut_out_size is 2 * lesser/greater than avg img size to prevent random outer edges to be recognized
-            # as an OTL
+        # as an OTL
         if 0 in last_five_OTL_sizes:
         # add the current OTL cut size
             last_five_OTL_sizes[i%5] = np.shape(OTL_cut_out)[0] * np.shape(OTL_cut_out)[1]
@@ -239,38 +228,15 @@ for label in classes:
             else:
                 last_five_OTL_sizes[i%5] = np.shape(OTL_cut_out)[0] * np.shape(OTL_cut_out)[1]
         # Save the snippet of the current OTL
-        if not os.path.exists("snippets/" + label):
-            os.makedirs("snippets/" + label)
-        filename = "snippets/" + label + "/" + str(hashlib.md5(str.encode(str(time.time()))).hexdigest()) + '.jpg'
+        if not os.path.exists(snippets_folder + label):
+            os.makedirs(snippets_folder + label)
+        filename = snippets_folder + label + "/" + str(hashlib.md5(str.encode(str(time.time()))).hexdigest()) + '.jpg'
 
         cv2.imwrite(filename, OTL_cut_out)
-        motor.forward(delay, int(STEPS_FOR_FULL_CIRCLE/images + 10))
+        motor.forward(delay, steps))
 
-        #except Exception as e:
-    #       print("I am a failure " + str(e))
-    #       continue
+    print(f"Progress for {label}: 100%")
 
-        # SECTION FOR FILE OPERATIONS
-
-        # write bounding box in correct format (see file operations class)
-        # write image into correct folder with correct naming
-        #
-"""
-        filename = str(hashlib.md5(str.encode(str(time.time()))).hexdigest())
-        # folder for the class
-        foldername = "new_folder/"
-        # datafolder for the images and the txt files
-        datafolder = foldername + "data/"
-        cwd = os.getcwd()
-        newpath = cwd + "/" + datafolder
-        if not os.path.exists(newpath):
-            os.makedirs(newpath)
-        imagefile = datafolder + filename + '.png'
-        textfile = open(datafolder + filename + '.txt', 'a')
-
-        file_operations.save_to_folder(textfile, imagefile, bounding_box, final)
-"""
-        #cv2.imshow('combined', final)
 
 if only_snippets:
     motor.cleanUp()
@@ -278,13 +244,14 @@ if only_snippets:
     exit()
 
 
-multiple_classes = False
+
+# Section for dataset creation
 cls_ids = [f for f,_ in enumerate(classes)]
-if multiple_classes == True:
+if multiclass == True:
     for i in range(images):
         snippets = []
         for k in classes:
-            pathname = "snippets/" + k + "/"
+            pathname = snippets_folder + k + "/"
             filename = random.choice(os.listdir(pathname))
             filepath = pathname + filename
             snippets.append(cv2.imread(filepath))
@@ -293,11 +260,11 @@ if multiple_classes == True:
             print("Error in OTL_on_background")
             i = i - steps
             continue
-        save_to_files(bounding_box_array, final)
+        save_to_files(bounding_box_array, final, results_folder)
 else:
     for label in classes:
         for i in range(images):
-            pathname = "snippets/" + label + "/"
+            pathname = snippets_folder + label + "/"
             filename = random.choice(os.listdir(pathname))
             filepath = pathname + filename
             OTL_cut_out = cv2.imread(filepath)
@@ -306,7 +273,7 @@ else:
                 print("Error in OTL_on_background")
                 i = i - steps
                 continue
-            save_to_files(bounding_box, final)
+            save_to_files(bounding_box, final, results_folder)
 
 
 
@@ -330,10 +297,9 @@ else:
         # 50. safe the final transformed image
         # 60.
 
-foldername = "new_folder/"
-file_operations.write_config_files(classes, foldername)
+file_operations.write_config_files(classes, results_folder)
 cv2.destroyAllWindows()
 motor.cleanUp()
 print("Creating ZIP file")
-shutil.make_archive(foldername[:-1], 'zip', foldername[:-1])
+shutil.make_archive(results_folder[:-1], 'zip', results_folder[:-1])
 print("finished successfully")
