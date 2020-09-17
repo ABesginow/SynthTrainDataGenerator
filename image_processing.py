@@ -16,10 +16,12 @@ class ImageProcessing:
         """
         Convert from absolute positions to relative positions, centred around the middle (yolo format)
 
-        Inputs: 
+        Inputs:
             size = [widht, height]
-            box  = [x1, x2, y1, y2]
+            box  = [(x1, y1), (x2, y2)]
         """
+        #TL = box[0]
+        #BR = box[1]
         dw = 1./size[0]
         dh = 1./size[1]
         x = (box[0] + box[1])/2.0
@@ -31,7 +33,7 @@ class ImageProcessing:
         y = y*dh
         h = h*dh
         return (x,y,w,h)
-    
+
     def auto_canny(self, image, sigma=0.53):
         """
         Calculates the edges of the image based on an automatic canny edge detection
@@ -39,7 +41,7 @@ class ImageProcessing:
         """
         # compute the median of the single channel pixel intensities
         v = np.median(image)
-    
+
         # apply automatic Canny edge detection using the computed median
         lower = int(max(0, (1.0 - sigma) * v))
         upper = int(min(255, (1.0 + sigma) * v))
@@ -59,7 +61,7 @@ class ImageProcessing:
         triangle_cnt = np.array([tl, tr, bl])
         print(triangle_cnt)
         cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
-    
+
         # BL corner
         bl = (0, np.shape(img)[0])
         tl = (0, int(((1 - percentage) * (np.shape(img)[0]))))
@@ -67,7 +69,7 @@ class ImageProcessing:
         triangle_cnt = np.array([bl, tl, br])
         print(triangle_cnt)
         cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
-    
+
         # BR corner
         br = list(reversed(np.shape(img)[0:2]))
         bl = (np.shape(img)[1], int((1 - percentage) * (np.shape(img)[0])))
@@ -84,7 +86,7 @@ class ImageProcessing:
         print(triangle_cnt)
         cv2.drawContours(img, [triangle_cnt], 0, (0, 0, 0), -1)
         return img
-    
+
     def remove_background_youtube(self, img_raw, lower_green, upper_green):
         """
         Based on some Youtube code, this can create a mask, based on upper and lower boundaries
@@ -93,10 +95,10 @@ class ImageProcessing:
 
         #lower_green = np.array([56, 87, 0])
     #upper_green = np.array([69, 255, 255])
-            
+
         mask = cv2.inRange(hsv, lower_green, upper_green)
         mask_inv = cv2.bitwise_not(mask)
-        
+
         fg = cv2.bitwise_and(img_raw, img_raw, mask=mask_inv)
         return fg, mask_inv
 
@@ -177,7 +179,7 @@ class ImageProcessing:
                 bestX = cX
                 bestY = cY
         return central_contour
-    
+
 
     def max_contour(self, img):
         """
@@ -192,7 +194,7 @@ class ImageProcessing:
             return max_contour
         else:
             return -1
-    
+
     def bounding_box(self, object_contour):
         x, y, w, h = cv2.boundingRect(object_contour)
         bounding_box = ((x, y), (x + w, y + h))
@@ -206,14 +208,16 @@ class ImageProcessing:
         dst = cv2.addWeighted(mask_edge, mask_weight, object_edge, object_weight, 0)
         return dst
 
+
+
     def iou(self, bb1, bb2, size=0):
         # TODO convert bounding boxes to [TL, BR] format
         # TODO p1 test!
         """
         Calculate the Intersection over Union (IoU) of two bounding boxes.
-            
+
         size = [H, W, D]
-    
+
         Parameters
         ----------
         bb1 : dict
@@ -229,7 +233,7 @@ class ImageProcessing:
         float
         in [0, 1]
         """
-    
+
         if size is not 0:
             # Absolute size of the image
             W = size[1]
@@ -242,14 +246,14 @@ class ImageProcessing:
             y_c = y_c_r * H
             w = w_r * W
             h = h_r * H
-                
+
             x1 = int(x_c - w/2)
             x2 = int(x_c + w/2)
             y1 = int(y_c - h/2)
             y2 = int(y_c + h/2)
-    
+
             bb1 = ((x1, y1), (x2, y2))
-    
+
             # _c = center
             # _r = relative
             x_c_r, y_c_r, w_r, h_r = bb2
@@ -258,194 +262,105 @@ class ImageProcessing:
             y_c = y_c_r * H
             w = w_r * W
             h = h_r * H
-    
+
             x1 = int(x_c - w/2)
             x2 = int(x_c + w/2)
             y1 = int(y_c - h/2)
             y2 = int(y_c + h/2)
-            
+
             bb2 = ((x1, y1), (x2, y2))
-    
-                
+
+
         # determine the coordinates of the intersection rectangle
         #pdb.set_trace()
         x_left = max(bb1[0][0], bb2[0][0])
         y_bottom = max(bb1[0][1], bb2[0][1])
         x_right = min(bb1[1][0], bb2[1][0])
         y_top = min(bb1[1][1], bb2[1][1])
-    
+
         #print(str(x_left) + " " + str(y_top) + " " + str(x_right) + " " + str(y_bottom))
-        
+
         if x_right < x_left or y_top < y_bottom:
             return 0.0
-    
+
         # The intersection of two axis-aligned bounding boxes is always an
         # axis-aligned bounding box
-    
-        #pdb.set_trace()    
+
+        #pdb.set_trace()
         intersection = (x_right - x_left) * (y_top - y_bottom)
         #print("Intersection size: " + str(intersection))
-    
-    
+
+
         x_left = min(bb1[0][0], bb2[0][0])
         y_bottom = min(bb1[0][1], bb2[0][1])
         x_right = max(bb1[1][0], bb2[1][0])
         y_top = max(bb1[1][1], bb2[1][1])
-    
+
         union = (x_right- x_left) * (y_top - y_bottom)
         #print("Union size: " + str(union))
         #print("Image size: " + str(W*H))
         iou_prct = int(intersection / union * 100)
         return iou_prct
 
-    def multiple_OTL_on_background(self, otl_snippets, cls_ids, occlusion=True):
-        # Idea for a different implementation:
-    # I have a folder with the OTL snippets and can load them in case I want to combine them for such a purpose
-    # TODO doing it already, actually.
 
-    # run OTL on background multiple times with every OTL snippet once
-    # if occlusion is true, I don't care where you position the snippets
-    # if it's false, try 5 times that you don't occlude it, else try again completely
-    # return a different datatype for the bounding box which also holds the corresponding ids of the object classes
-    #for i in range(len(otl_snippets)):
-    #   self.OTL_on_background(otl_snippets[i])
-        bb_array = []
-        if occlusion:
-            # If occlusion it true, start with the first snippet
-            final, bb = self.OTL_on_background(otl_snippets[0])
-            # Necessary? -> uncomment
-            #while final is 0 and bb is 0:
-            #    final, bb = self.OTL_on_background(otl_snippets[0]) 
-            bb_array.append((cls_ids[0], bb))
-            # continue to add the other snippets on the image
-            for i, snippet in enumerate(otl_snippets[1:]):
-                temp, bb = self.OTL_on_background(snippet, background=final)
-            # Why and when is this allowed to happen?
-                if temp is 0 and bb is 0:
-                    continue
-                else:
-                    final = temp.copy()
-            # TODO I have to check for overlap between the things and remove the 
-            # overlap from the previous snippets' bb
-            bb_array.append((cls_ids[i+1], bb))
-            # If there is no occlusion wanted
-        else:
-            # Begin with the first one -> no test needed
-            final, bb = self.OTL_on_background(otl_snippets[0])
-            while final is 0 and bb is 0:
-                final, bb = self.OTL_on_background(otl_snippets[0])
-            bb_array.append((cls_ids[0], bb))
-                # continue with the rest -> test needed
-            for i, snippet in enumerate(otl_snippets[1:]):
-                collision = False
-                temp, bb = self.OTL_on_background(snippet, background=final)
-                if temp is 0 and bb is 0:
-                    # Hack? -> Because I don't have a goto function?
-                    collision = True
-                if collision is False:
-                    for b in bb_array:
-                        # if there is overlap, do it again
-                        #pdb.set_trace()
-                        if self.iou(b[1], bb, np.shape(temp)) > 0:
-                            print("INITIAL OVERLAP")
-                            print(self.iou(b[1], bb, np.shape(temp)))
-                            collision = True
-                            break
-                        else:
-                            collision = False
-                        while collision:
-                            temp, bb = self.OTL_on_background(snippet, background=final)
-                if temp is 0 and bb is 0:
-                    collision = True
-                    continue
-                for b in bb_array:
-                    # if there is overlap, do it again
-                    if self.iou(b[1], bb, np.shape(temp)) > 0:
-                        print("LATER OVERLAP")
-                        print(self.iou(b[1], bb, np.shape(temp)))
-                        collision = True
-                        continue
-                    else:
-                        collision = False
-                final = temp.copy()
-                bb_array.append((cls_ids[i+1], bb))
-        return final, bb_array
-    
-        
-    def OTL_on_background(self, otl_snippet, random_position=True, random_size=True, background=0):
-        import os, random
-    
-        offset_x = 0
-        offset_y = 0
-        OTL_size_factor = 1
-        if background is 0:
-            #background = cv2.imread('market.jpg')
-            background_name = 'Backgrounds/' + random.choice(os.listdir("Backgrounds"))
-            background = cv2.imread(background_name)
-        try:
-            background = imutils.resize(background, width=1000)
-        except:
-            print("There is something wrong with: " + str(background_name))
-        img1 = background
-        if random_size:
-                # random returns a number between 0 and 1, so my value will be between 0 and 2
-            OTL_size_factor = random.uniform(0.5, 2)
-            try:
-                otl_snippet = imutils.resize(otl_snippet, height=int(otl_snippet.shape[0]*OTL_size_factor))
-            # Usually because the snippet gets too small
-            except Exception as e:
-                print(e)
-                print(OTL_size_factor)
-                return 0, 0
-    
-        img2 = otl_snippet
-    
-        # add OTL to image
-        # Get shape of snippet
-        rows,cols,channels = img2.shape
-        # x,y,_ because the depth channels are irrelevant for my purposes
-        height, width, _ = img1.shape
-    
-        i = 0
-        if random_position:
-            if (width - cols) < 0 or (height - rows) < 0:
-                return 0, 0
+        # start coordinates are the TL corner
+    def put_snippet_on_background(snippet, background, (start_x, start_y)):
+        height_snip, width_snip = np.shape(snippet)
 
-            offset_x = random.randrange(0, (width - cols))
-            offset_y = random.randrange(0, (height - rows))
-            # The two while-loops shouldn't be necessary, check via debug outputs
-            while offset_x + cols > width and i < 50:
-                print("DEBUG: offset_x + cols > width!!")
-                i += 1
-                offset_x = int(width*random.random())
-            while offset_y + rows > height and i < 50:
-                print("DEBUG: offset_y +rows > height!!")
-                i += 1
-                offset_y = int(height*random.random())
-            if i == 50:
-                return 0, 0
-            
-        roi = img1[offset_y:offset_y + rows, offset_x:offset_x + cols]
+        roi = background[start_y:start_y + height_snip, start_x:start_x + width_snip]
         # Now create a mask of snippet and create its inverse mask also
-        img2gray = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+        img2gray = cv2.cvtColor(snippet,cv2.COLOR_BGR2GRAY)
         ret, mask = cv2.threshold(img2gray, 10, 255, cv2.THRESH_BINARY)
         mask_inv = cv2.bitwise_not(mask)
-    
+
         # Now black-out the area of snippet in ROI
-        img1_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
-    
+        background_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
+
         # Take only region of snippet from snippet image
-        img2_fg = cv2.bitwise_and(img2,img2,mask = mask)
-    
+        snippet_fg = cv2.bitwise_and(snippet,snippet,mask = mask)
+
         # Put snippet in ROI and modify the main image
-        dst = cv2.add(img1_bg,img2_fg)
-    
-        img1[offset_y:offset_y + rows, offset_x:offset_x + cols] = dst
-    
-        b = (float(offset_x), float(offset_x + cols), float(offset_y), float(offset_y + rows))
-        bb = self.convert((width, height), b)
-            
-        return img1, bb
-    
-    #def transformation(self, transformation, bounding_box, img_raw, background_folder):
-    #       return
+        dst = cv2.add(background_bg,snippet_fg)
+
+        background[start_y:start_y + height_snip, start_x:start_x + width_snip] = dst
+
+        return background
+
+    def calculate_size(snippet, background, random_size, random_position):
+        if random_size:
+            y_scale, x_scale = (random.randrange(0.5, 2.0), random.randrange(0.5, 2.0))
+            snippet=cv2.resize(snippet,(height*y_scale, width*x_scale))
+        if random_position:
+            height_snip, width_snip = np.shape(snippet)
+            height_bckg, width_bckg = np.shape(background)
+            offset_y, offset_x = (random.randrange(0, (height_bckg - height_snip)), random.randrange(0, (width_bckg - width_snip)))
+
+
+    def OTL_on_background(self, snippets, background, cls_ids, occlusion=True, randomize=False, random_position=True, random_size=True):
+
+        import os, random
+        bounding_boxes = []
+        # first: theorethically position all the snippets to check for collisions
+        for snippet in snippets:
+            # Do-while loop, checking for any occlusion (or occlusion up to 50%)
+            calculate_size(snippet, background, random_size, random_position)
+            b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
+            if !occlusion:
+                while !check_for_collisions(b, bounding_boxes, threshold=0.0):
+                    calculate_size(snippet, background, random_size, random_position)
+                    b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
+            else:
+                while !check_for_collisions(b, bounding_boxes, threshold=0.5):
+                    calculate_size(snippet, background, random_size, random_position)
+                    b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
+            bounding_boxes.append(b)
+
+        # after all snippets have been checked, start placing the snippets on the image
+        for (snippet, bb) in zip(snippets, bounding_boxes):
+            offset_x = bb[0][0]
+            offset_y = bb[0][1]
+            background = put_snippet_on_background(snippet, background, (offset_x, offset_y))
+
+        return background, bounding_boxes
+
+

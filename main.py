@@ -268,6 +268,12 @@ cls_ids = [f for f,_ in enumerate(classes)]
 
 for i in range(images):
     snippets = getsnippets(c)
+    background_name = 'Backgrounds/' + random.choice(os.listdir("Backgrounds"))
+    background = cv2.imread(background_name)
+    try:
+        background = imutils.resize(background, width=1000)
+    except:
+        print("There is something wrong with: " + str(background_name))
     if multiclass:
         final, bounding_box = image_processor.multiple_OTL_on_background(snippets, cls_ids, occlusion=allow_overlap, randomize=randomize_multiclass)
         if final is 0 and 0 in bounding_box_array:
@@ -278,7 +284,7 @@ for i in range(images):
     # TODO can I get this in a single function call w. parameter 'multiclass=True/False'?
     else:
         for snippet in snippets:
-            final, bounding_box = image_processor.OTL_on_background(snippet)
+            final, bounding_box = image_processor.OTL_on_background(snippet, background=background)
             if final is 0 and 0 in bounding_box_array:
                 print("Error in OTL_on_background")
                 i = i - steps
