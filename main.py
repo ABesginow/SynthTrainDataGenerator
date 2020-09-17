@@ -18,6 +18,17 @@ from configparser import ConfigParser
 
 RPI_CAMERA = 0
 
+
+def getsnippets(classes):
+    snippets = []
+    for c in classes:
+        pathname = snippets_folder + c + "/"
+        filename = random.choice(os.listdir(pathname))
+        filepath = pathname + filename
+        snippets.append(cv2.imread(filepath))
+    return snippets
+
+
 def nothing(x):
     pass
 
@@ -245,57 +256,35 @@ if only_snippets:
 
 
 
-# Section for dataset creation
+#only_snippets
+#only_train_images
+#multiclass
+#randomize_multiclass
+#allow_overlap
+
+
+
 cls_ids = [f for f,_ in enumerate(classes)]
-if multiclass == True:
-    for i in range(images):
-        snippets = []
-        for k in classes:
-            pathname = snippets_folder + k + "/"
-            filename = random.choice(os.listdir(pathname))
-            filepath = pathname + filename
-            snippets.append(cv2.imread(filepath))
-        final, bounding_box_array = image_processor.multiple_OTL_on_background(snippets, cls_ids, occlusion=False)
+
+for i in range(images):
+    snippets = getsnippets(c)
+    if multiclass:
+        final, bounding_box = image_processor.multiple_OTL_on_background(snippets, cls_ids, occlusion=allow_overlap, randomize=randomize_multiclass)
         if final is 0 and 0 in bounding_box_array:
             print("Error in OTL_on_background")
             i = i - steps
             continue
-        save_to_files(bounding_box_array, final, results_folder)
-else:
-    for label in classes:
-        for i in range(images):
-            pathname = snippets_folder + label + "/"
-            filename = random.choice(os.listdir(pathname))
-            filepath = pathname + filename
-            OTL_cut_out = cv2.imread(filepath)
-            final, bounding_box = image_processor.OTL_on_background(OTL_cut_out)
-            if final is 0 and bounding_box is 0:
+        save_to_files(bounding_box, final, results_folder)
+    # TODO can I get this in a single function call w. parameter 'multiclass=True/False'?
+    else:
+        for snippet in snippets:
+            final, bounding_box = image_processor.OTL_on_background(snippet)
+            if final is 0 and 0 in bounding_box_array:
                 print("Error in OTL_on_background")
                 i = i - steps
                 continue
             save_to_files(bounding_box, final, results_folder)
 
-
-
-        # 5 different transformations
-        # 0...overlay with some image (transparent overlay)
-        # 1...delete and replace the background
-        # 2...occlude the object by a more or less random percentage
-        # 3...move the object to another (random) position in the image
-        # 4...insert another known object into the image and provide the bounding box of that
-        #
-        # parameters: ("which transformation", "bounding box", "raw image", "folder for overlay/background images")
-        #bounding_box_additional_object, img_processed = image_processor.transformation()
-
-        #motor.forward(delay, steps)
-        #what to do?
-        # 10. capture an image
-        # 20. apply contour detection, canny, etc. and find the object and the
-        #     bounding box for the object
-        # 30. write the text files with the bounding boxes in YOLO format
-        # 40. decide the transformation to apply on the image
-        # 50. safe the final transformed image
-        # 60.
 
 file_operations.write_config_files(classes, results_folder)
 cv2.destroyAllWindows()
