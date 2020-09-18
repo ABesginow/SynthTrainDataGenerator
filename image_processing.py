@@ -4,15 +4,15 @@ import argparse
 import glob
 import imutils
 import pdb
+import doctest
 
 class ImageProcessing:
-    def __init__(self, img=0):
-        if not np.all(img == 0):
-            self.background = img.copy()
-        pass
+    #def __init__(self, img=0):
+    #    if not np.all(img == 0):
+    #        self.background = img.copy()
+    #    pass
 
     def convert(self, size, box):
-        # TODO rewrite box to be [TL, BR] coordinates
         """
         Convert from absolute positions to relative positions, centred around the middle (yolo format)
 
@@ -20,19 +20,21 @@ class ImageProcessing:
             size = [widht, height]
             box  = [(x1, y1), (x2, y2)]
         """
-        #TL = box[0]
-        #BR = box[1]
+        TL = box[0]
+        BR = box[1]
+
+        x_center = (TL[0] + BR[0])/2
+        y_center = (TL[1] + BR[1])/2
+        width = BR[0] - TL[0]
+        height = BR[1] - TL[1]
+
         dw = 1./size[0]
         dh = 1./size[1]
-        x = (box[0] + box[1])/2.0
-        y = (box[2] + box[3])/2.0
-        w = box[1] - box[0]
-        h = box[3] - box[2]
-        x = x*dw
-        w = w*dw
-        y = y*dh
-        h = h*dh
-        return (x,y,w,h)
+        x_relative = x_center*dw
+        w_relative = width*dw
+        y_relative = y_center*dh
+        h_relative = height*dh
+        return (x_relative, y_relative, w_relative, h_relative)
 
     def auto_canny(self, image, sigma=0.53):
         """
@@ -209,12 +211,16 @@ class ImageProcessing:
         return dst
 
 
-
-    def iou(self, bb1, bb2, size=0):
-        # TODO convert bounding boxes to [TL, BR] format
-        # TODO p1 test!
+    @staticmethod
+    def iou(bb1, bb2, size=0):
+        # TODO make doctests
         """
         Calculate the Intersection over Union (IoU) of two bounding boxes.
+
+        >>> ImageProcessing.iou(((0,0),(100,100)), ((120,120),(150,150)))
+        0.0
+        >>> ImageProcessing.iou(((0,0), (100, 100)), ((50, 50), (100, 100)))
+        25
 
         size = [H, W, D]
 
@@ -234,79 +240,46 @@ class ImageProcessing:
         in [0, 1]
         """
 
-        if size is not 0:
-            # Absolute size of the image
-            W = size[1]
-            H = size[0]
-            # _c = center
-            # _r = relative
-            x_c_r, y_c_r, w_r, h_r = bb1
-            # Get absolute sizes / coordinates of the bounding boxes
-            x_c = x_c_r * W
-            y_c = y_c_r * H
-            w = w_r * W
-            h = h_r * H
+        # TODO: automatically recognize yolo format or TL/BR format
 
-            x1 = int(x_c - w/2)
-            x2 = int(x_c + w/2)
-            y1 = int(y_c - h/2)
-            y2 = int(y_c + h/2)
+        # Using TL/BR format:
 
-            bb1 = ((x1, y1), (x2, y2))
+        # Union coordinates
+        TL1 = bb1[0]
+        BR1 = bb1[1]
+        TL2 = bb2[0]
+        BR2 = bb2[1]
 
-            # _c = center
-            # _r = relative
-            x_c_r, y_c_r, w_r, h_r = bb2
-            # Get absolute sizes / coordinates of the bounding boxes
-            x_c = x_c_r * W
-            y_c = y_c_r * H
-            w = w_r * W
-            h = h_r * H
+        x_left_u   = min(TL1[0], TL2[0])
+        x_right_u  = max(BR1[0], BR2[0])
+        y_top_u    = min(TL1[1], TL2[1])
+        y_bottom_u = max(BR1[1], BR2[1])
 
-            x1 = int(x_c - w/2)
-            x2 = int(x_c + w/2)
-            y1 = int(y_c - h/2)
-            y2 = int(y_c + h/2)
+        # Intersection coordinates
+        x_left_i   = max(TL1[0], TL2[0])
+        x_right_i  = min(BR1[0], BR2[0])
+        y_top_i    = max(TL1[1], TL2[1])
+        y_bottom_i = min(BR1[1], BR2[1])
 
-            bb2 = ((x1, y1), (x2, y2))
-
-
-        # determine the coordinates of the intersection rectangle
-        #pdb.set_trace()
-        x_left = max(bb1[0][0], bb2[0][0])
-        y_bottom = max(bb1[0][1], bb2[0][1])
-        x_right = min(bb1[1][0], bb2[1][0])
-        y_top = min(bb1[1][1], bb2[1][1])
-
-        #print(str(x_left) + " " + str(y_top) + " " + str(x_right) + " " + str(y_bottom))
-
-        if x_right < x_left or y_top < y_bottom:
+        if x_right_i < x_left_i or y_top_i > y_bottom_i:
             return 0.0
 
-        # The intersection of two axis-aligned bounding boxes is always an
-        # axis-aligned bounding box
 
-        #pdb.set_trace()
-        intersection = (x_right - x_left) * (y_top - y_bottom)
-        #print("Intersection size: " + str(intersection))
+        union = (x_right_u - x_left_u) * (y_bottom_u - y_top_u )
+        intersection = (x_right_i - x_left_i) * (y_bottom_i - y_top_i)
 
-
-        x_left = min(bb1[0][0], bb2[0][0])
-        y_bottom = min(bb1[0][1], bb2[0][1])
-        x_right = max(bb1[1][0], bb2[1][0])
-        y_top = max(bb1[1][1], bb2[1][1])
-
-        union = (x_right- x_left) * (y_top - y_bottom)
-        #print("Union size: " + str(union))
-        #print("Image size: " + str(W*H))
         iou_prct = int(intersection / union * 100)
         return iou_prct
 
 
-        # start coordinates are the TL corner
-    def put_snippet_on_background(snippet, background, (start_x, start_y)):
-        height_snip, width_snip = np.shape(snippet)
 
+
+
+        # start coordinates are the TL corner
+    def put_snippet_on_background(snippet, background, start):
+        height_snip, width_snip = np.shape(snippet)
+        start_x = start[0]
+        start_y = start[1]
         roi = background[start_y:start_y + height_snip, start_x:start_x + width_snip]
         # Now create a mask of snippet and create its inverse mask also
         img2gray = cv2.cvtColor(snippet,cv2.COLOR_BGR2GRAY)
@@ -345,12 +318,12 @@ class ImageProcessing:
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
             calculate_size(snippet, background, random_size, random_position)
             b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
-            if !occlusion:
-                while !check_for_collisions(b, bounding_boxes, threshold=0.0):
+            if not occlusion:
+                while not check_for_collisions(b, bounding_boxes, threshold=0.0):
                     calculate_size(snippet, background, random_size, random_position)
                     b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
             else:
-                while !check_for_collisions(b, bounding_boxes, threshold=0.5):
+                while not check_for_collisions(b, bounding_boxes, threshold=0.5):
                     calculate_size(snippet, background, random_size, random_position)
                     b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
             bounding_boxes.append(b)
