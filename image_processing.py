@@ -5,6 +5,7 @@ import glob
 import imutils
 import pdb
 import doctest
+import random
 
 class ImageProcessing:
     #def __init__(self, img=0):
@@ -276,8 +277,8 @@ class ImageProcessing:
 
 
         # start coordinates are the TL corner
-    def put_snippet_on_background(snippet, background, start):
-        height_snip, width_snip = np.shape(snippet)
+    def put_snippet_on_background(self, snippet, background, start):
+        height_snip, width_snip, _ = np.shape(snippet)
         start_x = start[0]
         start_y = start[1]
         roi = background[start_y:start_y + height_snip, start_x:start_x + width_snip]
@@ -299,40 +300,43 @@ class ImageProcessing:
 
         return background
 
-    def calculate_size(snippet, background, random_size, random_position):
+
+    def calculate_size(self, snippet, background, random_size, random_position):
         if random_size:
-            y_scale, x_scale = (random.randrange(0.5, 2.0), random.randrange(0.5, 2.0))
-            snippet=cv2.resize(snippet,(height*y_scale, width*x_scale))
+            y_scale, x_scale = (random.uniform(0.5, 2.0), random.uniform(0.5, 2.0))
+            height_snip, width_snip, _ = np.shape(snippet)
+            snippet=cv2.resize(snippet,(int(height_snip*y_scale), int(width_snip*x_scale)))
         if random_position:
-            height_snip, width_snip = np.shape(snippet)
-            height_bckg, width_bckg = np.shape(background)
+            height_snip, width_snip, _ = np.shape(snippet)
+            height_bckg, width_bckg, _ = np.shape(background)
             offset_y, offset_x = (random.randrange(0, (height_bckg - height_snip)), random.randrange(0, (width_bckg - width_snip)))
 
 
-    def OTL_on_background(self, snippets, background, cls_ids, occlusion=True, randomize=False, random_position=True, random_size=True):
+    def OTL_on_background(self, snippets, background, cls_to_id, occlusion=True, randomize=False, random_position=True, random_size=True):
 
         import os, random
         bounding_boxes = []
         # first: theorethically position all the snippets to check for collisions
         for snippet in snippets:
+            pdb.set_trace()
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
-            calculate_size(snippet, background, random_size, random_position)
+            self.calculate_size(snippet[0], background, random_size, random_position)
             b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
             if not occlusion:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.0):
-                    calculate_size(snippet, background, random_size, random_position)
+                    self.calculate_size(snippet[0], background, random_size, random_position)
                     b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
             else:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.5):
-                    calculate_size(snippet, background, random_size, random_position)
+                    self.calculate_size(snippet[0], background, random_size, random_position)
                     b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
-            bounding_boxes.append(b)
+            bounding_boxes.append(b, snippet[1])
 
         # after all snippets have been checked, start placing the snippets on the image
-        for (snippet, bb) in zip(snippets, bounding_boxes):
+        for (snippet, [bb, cls]) in zip(snippets, bounding_boxes):
             offset_x = bb[0][0]
             offset_y = bb[0][1]
-            background = put_snippet_on_background(snippet, background, (offset_x, offset_y))
+            background = self.put_snippet_on_background(snippet[0], background, (offset_x, offset_y))
 
         return background, bounding_boxes
 

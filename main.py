@@ -12,12 +12,12 @@ import argparse
 # zip
 import shutil
 from pathlib import Path
-
+import collections
 # load the config file to get all the information
 from configparser import ConfigParser
 
 RPI_CAMERA = 0
-
+cls_to_id = {}
 
 def getsnippets(classes):
     snippets = []
@@ -25,7 +25,7 @@ def getsnippets(classes):
         pathname = snippets_folder + c + "/"
         filename = random.choice(os.listdir(pathname))
         filepath = pathname + filename
-        snippets.append(cv2.imread(filepath))
+        snippets.append([cv2.imread(filepath), cls_to_id[c]])
     return snippets
 
 
@@ -92,41 +92,6 @@ def execute_processing(img_raw, lower_green, upper_green):
 
     return img_deleted_background, combined_canny_edge, OTL_cut_out
 
-def create_ui():
-    # Initialise GUI
-    panel = np.zeros([100, 700], np.uint8)
-    cv2.namedWindow('panel')
-
-    # 056
-    cv2.createTrackbar('L - h', 'panel', 0, 255, nothing)
-    # 069
-    cv2.createTrackbar('U - h', 'panel', 255, 255, nothing)
-
-    # 087
-    cv2.createTrackbar('L - s', 'panel', 0, 255, nothing)
-    # 255
-    cv2.createTrackbar('U - s', 'panel', 255, 255, nothing)
-
-    # 0
-    cv2.createTrackbar('L - v', 'panel', 0, 255, nothing)
-    # 255
-    cv2.createTrackbar('U - v', 'panel', 255, 255, nothing)
-
-    # Cut left side of image
-    cv2.createTrackbar('left', 'panel', 0, 255, nothing)
-    # Cut right side of image
-    cv2.createTrackbar('right', 'panel', 1, 255, nothing)
-    # Cut top side of image
-    cv2.createTrackbar('top', 'panel', 0, 255, nothing)
-    # Cut bot side of image
-    cv2.createTrackbar('bot', 'panel', 1, 255, nothing)
-
-    switch = '0 : OFF \n1 : ON'
-    cv2.createTrackbar(switch, 'panel',0,1,nothing)
-    string_motor = '0 : MOTOR OFF \n1 : MOTOR ON'
-    cv2.createTrackbar(string_motor, 'panel', 0, 1, nothing)
-
-
 
 #Get the configparser object
 config_object = ConfigParser()
@@ -144,11 +109,11 @@ dataset_info = config_object["DATASETINFO"]
 #multivariants = config_object["MULTIVARIANT"]
 instances = config_object["INSTANCES"]
 
-
-classes = {}
+classes = collections.OrderedDict()
 # Getting the entries
 for i, entry in enumerate(dataset_info):
-    classes[entry] = {instances[dataset_info[entry]]} if dataset_info[entry] in instances else {"variants" : 1}
+    classes[dataset_info[entry]] = int(instances[dataset_info[entry]]) if dataset_info[entry] in instances else 1
+    cls_to_id[dataset_info[entry]] = i
 #    if dataset_info[entry] in instances:
 #        classes["object"+i] = {"label" : dataset_info[entry],
 #                               "variants": instances[dataset_info[entry]]}
@@ -156,7 +121,8 @@ for i, entry in enumerate(dataset_info):
 #        classes["object"+i] = {"label": dataset_info[entry],
 #                               "variants": 1}
 #    classes.append(dataset_info[entry])
-
+print(classes)
+print(cls_to_id)
 
 
 IMAGES = int(general_info["images per class"])
@@ -189,13 +155,45 @@ allow_overlap = args.allow_overlap
 ## Section for the configuration
 # Make images for every class
 for label in classes:
+    print("Current object: {}".format(label))
     if only_train_images:
         break
-    for variant in range(classes["label"]):
-        print("variant {} of {}".format(variant, classes["label"]))
+    for variant in range(classes[label]):
+        print("variant {} of {}".format(variant, classes[label]))
         last_five_OTL_sizes = [0]*5
+        # Initialise GUI
+        panel = np.zeros([100, 700], np.uint8)
+        cv2.namedWindow('panel')
 
-        create_ui()
+        # 056
+        cv2.createTrackbar('L - h', 'panel', 0, 255, nothing)
+        # 069
+        cv2.createTrackbar('U - h', 'panel', 255, 255, nothing)
+
+        # 087
+        cv2.createTrackbar('L - s', 'panel', 0, 255, nothing)
+        # 255
+        cv2.createTrackbar('U - s', 'panel', 255, 255, nothing)
+
+        # 0
+        cv2.createTrackbar('L - v', 'panel', 0, 255, nothing)
+        # 255
+        cv2.createTrackbar('U - v', 'panel', 255, 255, nothing)
+
+        # Cut left side of image
+        cv2.createTrackbar('left', 'panel', 0, 255, nothing)
+        # Cut right side of image
+        cv2.createTrackbar('right', 'panel', 1, 255, nothing)
+        # Cut top side of image
+        cv2.createTrackbar('top', 'panel', 0, 255, nothing)
+        # Cut bot side of image
+        cv2.createTrackbar('bot', 'panel', 1, 255, nothing)
+
+        switch = '0 : OFF \n1 : ON'
+        cv2.createTrackbar(switch, 'panel',0,1,nothing)
+        string_motor = '0 : MOTOR OFF \n1 : MOTOR ON'
+        cv2.createTrackbar(string_motor, 'panel', 0, 1, nothing)
+
 
         # Allow user to set boundary values & get live preview
         while True:
@@ -298,11 +296,15 @@ if only_snippets:
 #allow_overlap
 
 
-
-cls_ids = [f for f,_ in enumerate(classes)]
-
+images = IMAGES if multiclass else IMAGES*len(classes)
+print(images)
+classes_list = [entry for entry in classes]
+print("Multiclass: " +str(multiclass))
 for i in range(images):
-    snippets = getsnippets(c)
+    if multiclass:
+        snippets = getsnippets(classes_list)
+    else:
+        snippets = getsnippets(classes_list[i%len(classes_list)])
     background_name = 'Backgrounds/' + random.choice(os.listdir("Backgrounds"))
     background = cv2.imread(background_name)
     try:
@@ -310,7 +312,7 @@ for i in range(images):
     except:
         print("There is something wrong with: " + str(background_name))
     if multiclass:
-        final, bounding_box = image_processor.multiple_OTL_on_background(snippets, cls_ids, occlusion=allow_overlap, randomize=randomize_multiclass)
+        final, bounding_box = image_processor.OTL_on_background(snippets, background, cls_to_id, occlusion=allow_overlap, randomize=randomize_multiclass)
         if final is 0 and 0 in bounding_box_array:
             print("Error in OTL_on_background")
             i = i - steps
@@ -319,7 +321,7 @@ for i in range(images):
     # TODO can I get this in a single function call w. parameter 'multiclass=True/False'?
     else:
         for snippet in snippets:
-            final, bounding_box = image_processor.OTL_on_background(snippet, background=background)
+            final, bounding_box = image_processor.OTL_on_background(snippet, background, cls_to_id)
             if final is 0 and 0 in bounding_box_array:
                 print("Error in OTL_on_background")
                 i = i - steps
