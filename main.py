@@ -51,7 +51,7 @@ def create_config_file():
         "steps for full rotation": "12360",
         "steps per image": "30",
         "images per class": "3000",
-        "delay": "0.0001",
+        "delay": "0.001",
         "results folder":"Results/",
         "snippets folder": "Snippets/",
         "backgrounds folder":"Backgrounds/"
@@ -86,7 +86,7 @@ def execute_processing(img_raw, lower_green, upper_green):
     try:
         bounding_box = image_processor.bounding_box(object_contour)
     except:
-        continue
+        return 0, 0, 0
 
     OTL_cut_out = img_deleted_background[bounding_box[0][1]:bounding_box[1][1],bounding_box[0][0]:bounding_box[1][0],:]
 
@@ -106,11 +106,18 @@ config_object.read("config.ini")
 
 general_info = config_object["GENERAL"]
 dataset_info = config_object["DATASETINFO"]
+multivariants = config_object["MULTIVARIANT"]
+
 
 classes = []
 # Getting the entries
 for entry in dataset_info:
     classes.append(dataset_info[entry])
+
+multvar_classes = []
+# Getting the entries
+for entry in multivariants:
+    multvar_classes.append(multivariants[entry])
 
 IMAGES = int(general_info["images per class"])
 STEPS_FOR_FULL_CIRCLE = int(general_info["steps for full rotation"])
@@ -122,7 +129,7 @@ snippets_folder = general_info["snippets folder"]
 file_operations = FileOperations()
 motor = MotorControl()
 camera = ImageCapture(RPI_CAMERA)
-image_processor = ImageProcessing(camera.capture())
+image_processor = ImageProcessing()
 
 parser = argparse.ArgumentParser(description='Create a synthetic dataset for object detection.')
 parser.add_argument('--only_snippets', action="store_true", help='only capture snippets without creating a dataset (default: false)')
@@ -151,9 +158,9 @@ for label in classes:
     cv2.namedWindow('panel')
 
     # 056
-    cv2.createTrackbar('L - h', 'panel', 0, 179, nothing)
+    cv2.createTrackbar('L - h', 'panel', 0, 255, nothing)
     # 069
-    cv2.createTrackbar('U - h', 'panel', 179, 179, nothing)
+    cv2.createTrackbar('U - h', 'panel', 255, 255, nothing)
 
     # 087
     cv2.createTrackbar('L - s', 'panel', 0, 255, nothing)
@@ -164,6 +171,15 @@ for label in classes:
     cv2.createTrackbar('L - v', 'panel', 0, 255, nothing)
     # 255
     cv2.createTrackbar('U - v', 'panel', 255, 255, nothing)
+
+    # Cut left side of image
+    cv2.createTrackbar('left', 'panel', 0, 255, nothing)
+    # Cut right side of image
+    cv2.createTrackbar('right', 'panel', 1, 255, nothing)
+    # Cut top side of image
+    cv2.createTrackbar('top', 'panel', 0, 255, nothing)
+    # Cut bot side of image
+    cv2.createTrackbar('bot', 'panel', 1, 255, nothing)
 
     switch = '0 : OFF \n1 : ON'
     cv2.createTrackbar(switch, 'panel',0,1,nothing)
@@ -180,6 +196,10 @@ for label in classes:
         u_s = cv2.getTrackbarPos('U - s', 'panel')
         l_v = cv2.getTrackbarPos('L - v', 'panel')
         u_v = cv2.getTrackbarPos('U - v', 'panel')
+        l_cut = cv2.getTrackbarPos('left', 'panel')
+        r_cut = cv2.getTrackbarPos('right', 'panel')
+        t_cut = cv2.getTrackbarPos('top', 'panel')
+        b_cut = cv2.getTrackbarPos('bot', 'panel')
         start = cv2.getTrackbarPos(switch, 'panel')
         bool_motor = cv2.getTrackbarPos(string_motor, 'panel')
 
@@ -188,20 +208,22 @@ for label in classes:
             # for live preview
         cv2.imshow('panel', panel)
         key = cv2.waitKey(20)
-
+        img_raw = img_raw[0+t_cut:-b_cut, 0+l_cut:-r_cut]
         # Function that returns the results of the different processing steps
-        img_deleted_backgroud, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
+        img_deleted_background, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
+        if img_deleted_background == canny_edge == OTL_cut_out:
+            continue
 
         cv2.imshow('bckgrndsgmnttn', img_deleted_background)
 
        # display stuff
-        cv2.imshow('canny', combined_canny_edge)
+        cv2.imshow('canny', canny_edge)
         cv2.imshow('raw', img_raw)
         cv2.imshow('cut_out', OTL_cut_out)
         # Possibility to save images
         if key == ord('s'):
             cv2.imwrite('backgroundsegmented.jpg', img_deleted_background)
-            cv2.imwrite('canny.jpg', combined_canny_edge)
+            cv2.imwrite('canny.jpg', canny_edge)
             cv2.imwrite('raw.jpg', img_raw)
             cv2.imwrite('cut_out.jpg', OTL_cut_out)
         if key == ord('q'):
@@ -211,14 +233,15 @@ for label in classes:
         if start == 1:
             break
         if bool_motor == 1:
-            motor.forward(delay, 1000)
+            motor.forward(DELAY, 1000)
 
 
     ## Section for the training data creation
     cv2.destroyAllWindows()
 
     for i in range(0, STEPS_FOR_FULL_CIRCLE, steps):
-        print(f"Progress for {label}: {str(i/STEPS_FOR_FULL_CIRCLE*100)}%")
+        #print(f"Progress for {label}: {str(i/STEPS_FOR_FULL_CIRCLE*100)}%")
+        print("Progress for {}: {}%".format(label, str(i/STEPS_FOR_FULL_CIRCLE*100)))
         img_raw = camera.capture()
 
         img_deleted_backgroud, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
@@ -244,9 +267,10 @@ for label in classes:
         filename = snippets_folder + label + "/" + str(hashlib.md5(str.encode(str(time.time()))).hexdigest()) + '.jpg'
 
         cv2.imwrite(filename, OTL_cut_out)
-        motor.forward(delay, steps))
+        motor.forward(DELAY, steps)
 
-    print(f"Progress for {label}: 100%")
+
+    print("Progress for {}: 100%".format(label))
 
 
 if only_snippets:
