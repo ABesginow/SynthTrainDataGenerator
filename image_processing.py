@@ -310,7 +310,11 @@ class ImageProcessing:
             height_snip, width_snip, _ = np.shape(snippet)
             height_bckg, width_bckg, _ = np.shape(background)
             offset_y, offset_x = (random.randrange(0, (height_bckg - height_snip)), random.randrange(0, (width_bckg - width_snip)))
+        # TODO finish writing this
 
+
+    def check_for_collissions(b, bounding_boxes, threshold=0):
+        # TODO write this
 
     def OTL_on_background(self, snippets, background, cls_to_id, occlusion=True, randomize=False, random_position=True, random_size=True):
 
