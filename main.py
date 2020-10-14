@@ -154,7 +154,7 @@ for i, entry in enumerate(dataset_info):
 #                               "variants": instances[dataset_info[entry]]}
 #    else:
 #        classes["object"+i] = {"label": dataset_info[entry],
-                               "variants": 1}
+#                               "variants": 1}
 #    classes.append(dataset_info[entry])
 
 
