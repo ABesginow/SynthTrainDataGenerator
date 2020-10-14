@@ -141,7 +141,7 @@ config_object.read("config.ini")
 
 general_info = config_object["GENERAL"]
 dataset_info = config_object["DATASETINFO"]
-multivariants = config_object["MULTIVARIANT"]
+#multivariants = config_object["MULTIVARIANT"]
 instances = config_object["INSTANCES"]
 
 
@@ -191,7 +191,8 @@ allow_overlap = args.allow_overlap
 for label in classes:
     if only_train_images:
         break
-    for variant in range(classes["variants"]):
+    for variant in range(classes["label"]):
+        print("variant {} of {}".format(variant, classes["label"]))
         last_five_OTL_sizes = [0]*5
 
         create_ui()
