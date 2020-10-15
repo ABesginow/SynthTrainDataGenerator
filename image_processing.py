@@ -315,15 +315,19 @@ class ImageProcessing:
         return ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
 
     def check_for_collissions(b, bounding_boxes, threshold=0):
-
-        # TODO write this
+        # check every existing bounding box
+        for box in bounding_boxes:
+            # calculate the overlap
+            if iou(box, b) > threshold:
+                return False
+        return True
 
     def OTL_on_background(self, snippets, background, cls_to_id, occlusion=True, randomize=False, random_position=True, random_size=True):
-
         import os, random
         bounding_boxes = []
         # first: theorethically position all the snippets to check for collisions
         for snippet in snippets:
+            i = 0
             pdb.set_trace()
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
             #((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
@@ -331,9 +335,18 @@ class ImageProcessing:
             if not occlusion:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.0):
                     b = self.calculate_size(snippet[0], background, random_size, random_position)
+                    i += 1
+                    if i > 50:
+                        print("ERROR: It didn't fit!")
+                        return 0, 0
+
             else:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.5):
                     b = self.calculate_size(snippet[0], background, random_size, random_position)
+                    i += 1
+                    if i > 50:
+                        print("ERROR: It didn't fit!")
+                        return 0, 0
             bounding_boxes.append(b, snippet[1])
 
         # after all snippets have been checked, start placing the snippets on the image
