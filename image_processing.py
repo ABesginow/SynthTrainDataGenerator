@@ -302,6 +302,8 @@ class ImageProcessing:
 
 
     def calculate_size(self, snippet, background, random_size, random_position):
+        offset_y, offset_x = 0
+        height_snip, width_snip, _ = np.shape(snippet)
         if random_size:
             y_scale, x_scale = (random.uniform(0.5, 2.0), random.uniform(0.5, 2.0))
             height_snip, width_snip, _ = np.shape(snippet)
@@ -310,10 +312,10 @@ class ImageProcessing:
             height_snip, width_snip, _ = np.shape(snippet)
             height_bckg, width_bckg, _ = np.shape(background)
             offset_y, offset_x = (random.randrange(0, (height_bckg - height_snip)), random.randrange(0, (width_bckg - width_snip)))
-        # TODO finish writing this
-
+        return ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
 
     def check_for_collissions(b, bounding_boxes, threshold=0):
+
         # TODO write this
 
     def OTL_on_background(self, snippets, background, cls_to_id, occlusion=True, randomize=False, random_position=True, random_size=True):
@@ -324,16 +326,14 @@ class ImageProcessing:
         for snippet in snippets:
             pdb.set_trace()
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
-            self.calculate_size(snippet[0], background, random_size, random_position)
-            b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
+            #((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
+            b = self.calculate_size(snippet[0], background, random_size, random_position)
             if not occlusion:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.0):
-                    self.calculate_size(snippet[0], background, random_size, random_position)
-                    b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
+                    b = self.calculate_size(snippet[0], background, random_size, random_position)
             else:
                 while not check_for_collisions(b, bounding_boxes, threshold=0.5):
-                    self.calculate_size(snippet[0], background, random_size, random_position)
-                    b = ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
+                    b = self.calculate_size(snippet[0], background, random_size, random_position)
             bounding_boxes.append(b, snippet[1])
 
         # after all snippets have been checked, start placing the snippets on the image
