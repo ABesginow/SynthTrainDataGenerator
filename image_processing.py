@@ -315,7 +315,7 @@ class ImageProcessing:
             # Used to choose the minimal scale, else they'd exceed the max_height/width
             scale = min(y_scale, x_scale)
             height_snip, width_snip, _ = np.shape(snippet)
-            size = int(width_snip*scale), int(height_snip*scale))
+            size = (int(width_snip*scale), int(height_snip*scale))
             print(size)
             snippet=cv2.resize(snippet, size)
         if random_position:
