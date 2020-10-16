@@ -44,6 +44,11 @@ def save_to_files(bounding_box, final, foldername):
     textfile = open(datafolder + filename + '.txt', 'a')
 
     file_operations.save_to_folder(textfile, imagefile, bounding_box, final)
+    textfile.close()
+    textfile = open(datafolder + filename + '.txt', 'r')
+    if textfile.read() == "":
+        pdb.set_trace()
+
 
 def create_config_file():
     #Assume we need 2 sections in the config file, let's call them USERINFO and SERVERCONFIG
@@ -253,6 +258,7 @@ for label in classes:
             print("Progress for {}: {}%".format(label, str(i/STEPS_FOR_FULL_CIRCLE*100)))
             img_raw = camera.capture()
 
+            img_raw = img_raw[0+t_cut:-b_cut, 0+l_cut:-r_cut]
             img_deleted_backgroud, canny_edge, OTL_cut_out = execute_processing(img_raw, lower_green, upper_green)
 
             # check if cut_out_size is 2 * lesser/greater than avg img size to prevent random outer edges to be recognized
@@ -276,7 +282,7 @@ for label in classes:
             filename = snippets_folder + label + "/" + str(hashlib.md5(str.encode(str(time.time()))).hexdigest()) + '.jpg'
 
             cv2.imwrite(filename, OTL_cut_out)
-            motor.forward(DELAY, steps)
+            motor.forward(DELAY, 2*steps)
 
 
         print("Progress for {}: 100%".format(label))

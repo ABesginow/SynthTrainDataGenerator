@@ -244,13 +244,13 @@ class ImageProcessing:
         # TODO: automatically recognize yolo format or TL/BR format
 
         # Using TL/BR format:
-
+        print(bb1)
+        print(bb2)
         # Union coordinates
         TL1 = bb1[0]
         BR1 = bb1[1]
         TL2 = bb2[0]
         BR2 = bb2[1]
-
         x_left_u   = min(TL1[0], TL2[0])
         x_right_u  = max(BR1[0], BR2[0])
         y_top_u    = min(TL1[1], TL2[1])
@@ -288,7 +288,10 @@ class ImageProcessing:
         mask_inv = cv2.bitwise_not(mask)
 
         # Now black-out the area of snippet in ROI
-        background_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
+        try:
+            background_bg = cv2.bitwise_and(roi,roi,mask = mask_inv)
+        except:
+            pdb.set_trace()
 
         # Take only region of snippet from snippet image
         snippet_fg = cv2.bitwise_and(snippet,snippet,mask = mask)
@@ -301,24 +304,32 @@ class ImageProcessing:
         return background
 
 
-    def calculate_size(self, snippet, background, random_size, random_position):
-        offset_y, offset_x = 0
+    def calculate_size(self, snippet, background, random_size, random_position, classes=1):
+        offset_y, offset_x = 0, 0
         height_snip, width_snip, _ = np.shape(snippet)
+        height_bckg, width_bckg, _ = np.shape(background)
         if random_size:
-            y_scale, x_scale = (random.uniform(0.5, 2.0), random.uniform(0.5, 2.0))
+            max_height, max_width = height_bckg/classes, width_bckg/classes
+            # Purpose is to limit the snippet sizes to make it easier for items to fit into the image
+            y_scale, x_scale = (random.uniform(0.5, min(2.0, max_height/height_snip)), random.uniform(0.5, min(2.0, max_width/width_snip) ))
+            # Used to choose the minimal scale, else they'd exceed the max_height/width
+            scale = min(y_scale, x_scale)
             height_snip, width_snip, _ = np.shape(snippet)
-            snippet=cv2.resize(snippet,(int(height_snip*y_scale), int(width_snip*x_scale)))
+            size = int(width_snip*scale), int(height_snip*scale))
+            print(size)
+            snippet=cv2.resize(snippet, size)
         if random_position:
             height_snip, width_snip, _ = np.shape(snippet)
-            height_bckg, width_bckg, _ = np.shape(background)
             offset_y, offset_x = (random.randrange(0, (height_bckg - height_snip)), random.randrange(0, (width_bckg - width_snip)))
+            if offset_y + height_snip > height_bckg or offset_x + width_snip > width_bckg:
+                pdb.set_trace()
         return ((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip))
 
-    def check_for_collissions(b, bounding_boxes, threshold=0):
+    def check_for_collisions(self, b, bounding_boxes, threshold=0):
         # check every existing bounding box
         for box in bounding_boxes:
             # calculate the overlap
-            if iou(box, b) > threshold:
+            if self.iou(b, box[0]) > threshold:
                 return False
         return True
 
@@ -328,33 +339,43 @@ class ImageProcessing:
         # first: theorethically position all the snippets to check for collisions
         for snippet in snippets:
             i = 0
-            pdb.set_trace()
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
             #((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
-            b = self.calculate_size(snippet[0], background, random_size, random_position)
+            b = self.calculate_size(snippet[0], background, random_size, random_position, classes=len(snippets))
+            print("Bounding box: {}".format(b))
             if not occlusion:
-                while not check_for_collisions(b, bounding_boxes, threshold=0.0):
-                    b = self.calculate_size(snippet[0], background, random_size, random_position)
+                while not self.check_for_collisions(b, bounding_boxes, threshold=0.0):
+                    b = self.calculate_size(snippet[0], background, random_size, random_position, classes=len(snippets) )
                     i += 1
                     if i > 50:
                         print("ERROR: It didn't fit!")
                         return 0, 0
-
             else:
-                while not check_for_collisions(b, bounding_boxes, threshold=0.5):
-                    b = self.calculate_size(snippet[0], background, random_size, random_position)
+                while not self.check_for_collisions(b, bounding_boxes, threshold=0.5):
+                    b = self.calculate_size(snippet[0], background, random_size, random_position, classes=len(snippets))
                     i += 1
                     if i > 50:
                         print("ERROR: It didn't fit!")
                         return 0, 0
-            bounding_boxes.append(b, snippet[1])
+            bounding_boxes.append([b, snippet[1]])
 
         # after all snippets have been checked, start placing the snippets on the image
         for (snippet, [bb, cls]) in zip(snippets, bounding_boxes):
             offset_x = bb[0][0]
             offset_y = bb[0][1]
-            background = self.put_snippet_on_background(snippet[0], background, (offset_x, offset_y))
-
+            height = bb[1][1] - bb[0][1]
+            width = bb[1][0] - bb[0][0]
+            snippet[0] = cv2.resize(snippet[0], (width, height))
+            print("BB and snippet shape. After resize")
+            print(bb)
+            print(np.shape(snippet[0]))
+            if np.shape(snippet[0])[:-1] == (height, width):
+                bckg_height, bckg_width, _ = np.shape(background)
+                if offset_x + width > bckg_width or offset_y + height > bckg_height:
+                    pdb.set_trace()
+                background = self.put_snippet_on_background(snippet[0], background, (offset_x, offset_y))
+            else:
+                pdb.set_trace()
         return background, bounding_boxes
 
 
