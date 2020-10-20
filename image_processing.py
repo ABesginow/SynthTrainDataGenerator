@@ -35,6 +35,13 @@ class ImageProcessing:
         w_relative = width*dw
         y_relative = y_center*dh
         h_relative = height*dh
+        #security check to see whether the BB is getting outside the border
+        if x_relative + w_relative > 1:
+            x_relative -= (x_relative+w_relative -1)/2
+            w_relative -= (x_relative+w_relative -1)
+        if y_relative + h_relative > 1:
+            y_relative -= (y_relative+h_relative -1)/2
+            h_relative -= (y_relative+h_relative -1)
         return (x_relative, y_relative, w_relative, h_relative)
 
     def auto_canny(self, image, sigma=0.53):
@@ -376,6 +383,8 @@ class ImageProcessing:
                 background = self.put_snippet_on_background(snippet[0], background, (offset_x, offset_y))
             else:
                 pdb.set_trace()
+        #TODO Test this on the system
+        bounding_boxes = [[self.convert(b[0]), b[1]] for b in bounding_boxes]
         return background, bounding_boxes
 
 
