@@ -250,9 +250,6 @@ class ImageProcessing:
 
         # TODO: automatically recognize yolo format or TL/BR format
 
-        # Using TL/BR format:
-        print(bb1)
-        print(bb2)
         # Union coordinates
         TL1 = bb1[0]
         BR1 = bb1[1]
