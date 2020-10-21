@@ -316,7 +316,7 @@ for i in range(images):
     try:
         background = imutils.resize(background, width=1000)
     except:
-        print("There is something wrong with: " + str(background_name))
+        print("There was a resize problem with: " + str(background_name))
     if multiclass:
         final, bounding_box = image_processor.OTL_on_background(snippets, background, cls_to_id, occlusion=allow_overlap, randomize=randomize_multiclass)
         if final is 0 and 0 in bounding_box_array:
