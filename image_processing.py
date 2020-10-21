@@ -323,7 +323,6 @@ class ImageProcessing:
             scale = min(y_scale, x_scale)
             height_snip, width_snip, _ = np.shape(snippet)
             size = (int(width_snip*scale), int(height_snip*scale))
-            print(size)
             snippet=cv2.resize(snippet, size)
         if random_position:
             height_snip, width_snip, _ = np.shape(snippet)
@@ -349,7 +348,6 @@ class ImageProcessing:
             # Do-while loop, checking for any occlusion (or occlusion up to 50%)
             #((offset_x, offset_y),(offset_x+width_snip, offset_y+height_snip)) #(TL), (BR) - Format
             b = self.calculate_size(snippet[0], background, random_size, random_position, classes=len(snippets))
-            print("Bounding box: {}".format(b))
             if not occlusion:
                 while not self.check_for_collisions(b, bounding_boxes, threshold=0.0):
                     b = self.calculate_size(snippet[0], background, random_size, random_position, classes=len(snippets) )
@@ -373,9 +371,6 @@ class ImageProcessing:
             height = bb[1][1] - bb[0][1]
             width = bb[1][0] - bb[0][0]
             snippet[0] = cv2.resize(snippet[0], (width, height))
-            print("BB and snippet shape. After resize")
-            print(bb)
-            print(np.shape(snippet[0]))
             if np.shape(snippet[0])[:-1] == (height, width):
                 bckg_height, bckg_width, _ = np.shape(background)
                 if offset_x + width > bckg_width or offset_y + height > bckg_height:
@@ -384,7 +379,7 @@ class ImageProcessing:
             else:
                 pdb.set_trace()
         #TODO Test this on the system
-        bounding_boxes = [[self.convert(b[0]), b[1]] for b in bounding_boxes]
+        bounding_boxes = [[self.convert(np.shape(background)[:-1][::-1], b[0]), b[1]] for b in bounding_boxes]
         return background, bounding_boxes
 
 
