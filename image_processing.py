@@ -314,8 +314,9 @@ class ImageProcessing:
         height_bckg, width_bckg, _ = np.shape(background)
         if random_size:
             max_height, max_width = height_bckg/classes, width_bckg/classes
+            min_height, min_width = height_bckg*0.1, width_bckg*0.1
             # Purpose is to limit the snippet sizes to make it easier for items to fit into the image
-            y_scale, x_scale = (random.uniform(0.5, min(2.0, max_height/height_snip)), random.uniform(0.5, min(2.0, max_width/width_snip) ))
+            y_scale, x_scale = (random.uniform(max(min_height/height_snip, 0.5), max_height/height_snip), random.uniform(max(min_width/width_snip, 0.5), max_width/width_snip) )
             # Used to choose the minimal scale, else they'd exceed the max_height/width
             scale = min(y_scale, x_scale)
             height_snip, width_snip, _ = np.shape(snippet)

@@ -13,7 +13,7 @@ valid_txt = 'test.txt'
 images_path = folder + "data/"
 
 cwd = os.getcwd()
-result = glob.glob(images_path)
+result = glob.glob(os.path.join(cwd,images_path))
 shuffle(result)
 
 with open("train.txt", 'w') as f:

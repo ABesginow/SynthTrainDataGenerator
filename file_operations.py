@@ -69,5 +69,7 @@ class FileOperations():
                     line = "classes=" + str(len(classes)) + "\n"
                 fp.write(line)
 
+        shutil.copy("create_train_test_txt.py", foldername + foldername[:-1] + "_create_train_test_txt.py")
+
 # (0 - classes-1)
 # class-id + " " + x + " " + y + " " + width + " " + " " + height
